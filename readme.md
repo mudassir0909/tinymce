@@ -1,5 +1,6 @@
 TinyMCE - The JavaScript Rich Text editor
 ==========================================
+This repo hosts custom builds of tinymce with cherry-picked plugins. Tinymce is build from a tag & then the build is retagged with a "v" prefix. For example, you can find the custom build of tag 4.1.9 at v4.1.9 tag & so on. You can also find the commits under the branch `build/X.X.X` (X.X.X is version number)
 
 Building TinyMCE
 -----------------
