@@ -28,8 +28,9 @@ define("tinymce/Formatter", [
 	"tinymce/dom/BookmarkManager",
 	"tinymce/dom/ElementUtils",
 	"tinymce/util/Tools",
-	"tinymce/fmt/Preview"
-], function(TreeWalker, RangeUtils, BookmarkManager, ElementUtils, Tools, Preview) {
+	"tinymce/fmt/Preview",
+	"tinymce/fmt/Hooks"
+], function(TreeWalker, RangeUtils, BookmarkManager, ElementUtils, Tools, Preview, Hooks) {
 	/**
 	 * Constructs a new formatter instance.
 	 *
@@ -100,25 +101,100 @@ define("tinymce/Formatter", [
 				],
 
 				alignleft: [
-					{selector: 'figure.image', collapsed: false, classes: 'align-left', ceFalseOverride: true},
-					{selector: 'figure,p,h1,h2,h3,h4,h5,h6,td,th,tr,div,ul,ol,li', styles: {textAlign: 'left'}, defaultBlock: 'div'},
-					{selector: 'img,table', collapsed: false, styles: {'float': 'left'}}
+					{
+						selector: 'figure.image',
+						collapsed: false,
+						classes: 'align-left',
+						ceFalseOverride: true,
+						preview: 'font-family font-size'
+					},
+					{
+						selector: 'figure,p,h1,h2,h3,h4,h5,h6,td,th,tr,div,ul,ol,li',
+						styles: {
+							textAlign: 'left'
+						},
+						inherit: false,
+						preview: false,
+						defaultBlock: 'div'
+					},
+					{selector: 'img,table', collapsed: false, styles: {'float': 'left'}, preview: 'font-family font-size'}
 				],
 
 				aligncenter: [
-					{selector: 'figure,p,h1,h2,h3,h4,h5,h6,td,th,tr,div,ul,ol,li', styles: {textAlign: 'center'}, defaultBlock: 'div'},
-					{selector: 'img', collapsed: false, styles: {display: 'block', marginLeft: 'auto', marginRight: 'auto'}},
-					{selector: 'table', collapsed: false, styles: {marginLeft: 'auto', marginRight: 'auto'}}
+					{
+						selector: 'figure,p,h1,h2,h3,h4,h5,h6,td,th,tr,div,ul,ol,li',
+						styles: {
+							textAlign: 'center'
+						},
+						inherit: false,
+						preview: false,
+						defaultBlock: 'div'
+					},
+					{
+						selector: 'figure.image',
+						collapsed: false,
+						classes: 'align-center',
+						ceFalseOverride: true,
+						preview: 'font-family font-size'
+					},
+					{
+						selector: 'img',
+						collapsed: false,
+						styles: {
+							display: 'block',
+							marginLeft: 'auto',
+							marginRight: 'auto'
+						},
+						preview: false
+					},
+					{
+						selector: 'table',
+						collapsed: false,
+						styles: {
+							marginLeft: 'auto',
+							marginRight: 'auto'
+						},
+						preview: 'font-family font-size'
+					}
 				],
 
 				alignright: [
-					{selector: 'figure.image', collapsed: false, classes: 'align-right', ceFalseOverride: true},
-					{selector: 'figure,p,h1,h2,h3,h4,h5,h6,td,th,tr,div,ul,ol,li', styles: {textAlign: 'right'}, defaultBlock: 'div'},
-					{selector: 'img,table', collapsed: false, styles: {'float': 'right'}}
+					{
+						selector: 'figure.image',
+						collapsed: false,
+						classes: 'align-right',
+						ceFalseOverride: true,
+						preview: 'font-family font-size'
+					},
+					{
+						selector: 'figure,p,h1,h2,h3,h4,h5,h6,td,th,tr,div,ul,ol,li',
+						styles: {
+							textAlign: 'right'
+						},
+						inherit: false,
+						preview: 'font-family font-size',
+						defaultBlock: 'div'
+					},
+					{
+						selector: 'img,table',
+						collapsed: false,
+						styles: {
+							'float': 'right'
+						},
+						preview: 'font-family font-size'
+					}
 				],
 
 				alignjustify: [
-					{selector: 'figure,p,h1,h2,h3,h4,h5,h6,td,th,tr,div,ul,ol,li', styles: {textAlign: 'justify'}, defaultBlock: 'div'}
+					{
+						selector: 'figure,p,h1,h2,h3,h4,h5,h6,td,th,tr,div,ul,ol,li',
+						styles: {
+							textAlign: 'justify'
+						},
+						inherit: false,
+						defaultBlock: 'div',
+						preview: 'font-family font-size'
+					}
 				],
 
 				bold: [
@@ -283,6 +359,20 @@ define("tinymce/Formatter", [
 			return formats;
 		}
 
+		function matchesUnInheritedFormatSelector(node, name) {
+			var formatList = get(name);
+
+			if (formatList) {
+				for (var i = 0; i < formatList.length; i++) {
+					if (formatList[i].inherit === false && dom.is(node, formatList[i].selector)) {
+						return true;
+					}
+				}
+			}
+
+			return false;
+		}
+
 		function getTextDecoration(node) {
 			var decoration;
 
@@ -353,10 +443,39 @@ define("tinymce/Formatter", [
 				}
 			}
 
+			function applyNodeStyle(formatList, node) {
+				var found = false;
+
+				if (!format.selector) {
+					return false;
+				}
+
+				// Look for matching formats
+				each(formatList, function(format) {
+					// Check collapsed state if it exists
+					if ('collapsed' in format && format.collapsed !== isCollapsed) {
+						return;
+					}
+
+					if (dom.is(node, format.selector) && !isCaretNode(node)) {
+						setElementFormat(node, format);
+						found = true;
+						return false;
+					}
+				});
+
+				return found;
+			}
+
+			// This converts: <p>[a</p><p>]b</p> -> <p>[a]</p><p>b</p>
 			function adjustSelectionToVisibleSelection() {
 				function findSelectionEnd(start, end) {
 					var walker = new TreeWalker(end);
-					for (node = walker.current(); node; node = walker.prev()) {
+					for (node = walker.prev2(); node; node = walker.prev2()) {
+						if (node.nodeType == 3 && node.data.length > 0) {
+							return node;
+						}
+
 						if (node.childNodes.length > 1 || node == start || node.tagName == 'BR') {
 							return node;
 						}
@@ -371,7 +490,7 @@ define("tinymce/Formatter", [
 
 				if (start != end && rng.endOffset === 0) {
 					var newEnd = findSelectionEnd(start, end);
-					var endOffset = newEnd.nodeType == 3 ? newEnd.length : newEnd.childNodes.length;
+					var endOffset = newEnd.nodeType == 3 ? newEnd.data.length : newEnd.childNodes.length;
 
 					rng.setEnd(newEnd, endOffset);
 				}
@@ -394,7 +513,7 @@ define("tinymce/Formatter", [
 					 * Process a list of nodes wrap them.
 					 */
 					function process(node) {
-						var nodeName, parentName, found, hasContentEditableState, lastContentEditable;
+						var nodeName, parentName, hasContentEditableState, lastContentEditable;
 
 						lastContentEditable = contentEditable;
 						nodeName = node.nodeName.toLowerCase();
@@ -438,19 +557,7 @@ define("tinymce/Formatter", [
 
 						// Handle selector patterns
 						if (format.selector) {
-							// Look for matching formats
-							each(formatList, function(format) {
-								// Check collapsed state if it exists
-								if ('collapsed' in format && format.collapsed !== isCollapsed) {
-									return;
-								}
-
-								if (dom.is(node, format.selector) && !isCaretNode(node)) {
-									setElementFormat(node, format);
-									found = true;
-									return false;
-								}
-							});
+							var found = applyNodeStyle(formatList, node);
 
 							// Continue processing if a selector match wasn't found and a inline element is defined
 							if (!format.inline || found) {
@@ -620,15 +727,17 @@ define("tinymce/Formatter", [
 			if (format) {
 				if (node) {
 					if (node.nodeType) {
-						rng = dom.createRng();
-						rng.setStartBefore(node);
-						rng.setEndAfter(node);
-						applyRngStyle(expandRng(rng, formatList), null, true);
+						if (!applyNodeStyle(formatList, node)) {
+							rng = dom.createRng();
+							rng.setStartBefore(node);
+							rng.setEndAfter(node);
+							applyRngStyle(expandRng(rng, formatList), null, true);
+						}
 					} else {
 						applyRngStyle(node, null, true);
 					}
 				} else {
-					if (!isCollapsed || !format.inline || dom.select('td.mce-item-selected,th.mce-item-selected').length) {
+					if (!isCollapsed || !format.inline || dom.select('td[data-mce-selected],th[data-mce-selected]').length) {
 						// Obtain selection node before selection is unselected by applyRngStyle()
 						var curSelNode = ed.selection.getNode();
 
@@ -657,6 +766,8 @@ define("tinymce/Formatter", [
 						performCaretAction('apply', name, vars);
 					}
 				}
+
+				Hooks.postProcess(name, ed);
 			}
 		}
 
@@ -906,7 +1017,7 @@ define("tinymce/Formatter", [
 				return;
 			}
 
-			if (!selection.isCollapsed() || !format.inline || dom.select('td.mce-item-selected,th.mce-item-selected').length) {
+			if (!selection.isCollapsed() || !format.inline || dom.select('td[data-mce-selected],th[data-mce-selected]').length) {
 				bookmark = selection.getBookmark();
 				removeRngStyle(selection.getRng(TRUE));
 				selection.moveToBookmark(bookmark);
@@ -1039,6 +1150,10 @@ define("tinymce/Formatter", [
 
 				// Find first node with similar format settings
 				node = dom.getParent(node, function(node) {
+					if (matchesUnInheritedFormatSelector(node, name)) {
+						return true;
+					}
+
 					return node.parentNode === root || !!matchNode(node, name, vars, true);
 				});
 
@@ -1170,6 +1285,10 @@ define("tinymce/Formatter", [
 								}
 
 								matchedFormats[format] = callbacks;
+								return false;
+							}
+
+							if (matchesUnInheritedFormatSelector(node, format)) {
 								return false;
 							}
 						});
@@ -1833,7 +1952,8 @@ define("tinymce/Formatter", [
 				// Check for non internal attributes
 				attrs = dom.getAttribs(node);
 				for (i = 0; i < attrs.length; i++) {
-					if (attrs[i].nodeName.indexOf('_') !== 0) {
+					var attrName = attrs[i].nodeName;
+					if (attrName.indexOf('_') !== 0 && attrName.indexOf('data-') !== 0) {
 						return FALSE;
 					}
 				}

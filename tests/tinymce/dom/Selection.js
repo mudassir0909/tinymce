@@ -646,6 +646,11 @@ ModuleLoader.require([
 			equal(rng.collapsed, true);
 			equal(rng.startContainer.nodeType, 3);
 			equal(rng.startContainer.data, 'b');
+
+			// WebKit is in some state state here, so lets restore it
+			rng.setStart(editor.getBody(), 0);
+			rng.setEnd(editor.getBody(), 0);
+			editor.selection.setRng(rng);
 		});
 
 		test('normalize with contentEditable:true parent and contentEditable:false child element', function() {
@@ -657,7 +662,7 @@ ModuleLoader.require([
 
 			if (Env.ie && Env.ie < 12) {
 				// IE automatically normalizes
-				equal(rng.startContainer.data, 'a');
+				ok(rng.startContainer.parentNode.contentEditable != 'false');
 			} else {
 				equal(CaretContainer.isCaretContainer(rng.startContainer), true);
 			}
@@ -939,6 +944,26 @@ ModuleLoader.require([
 			equal(rng.endOffset, 0, 'endOffset offset');
 		});
 
+		test('normalize after table should not move', function() {
+			var rng;
+
+			if (tinymce.isOpera || tinymce.isIE) {
+				ok(true, "Skipped on Opera/IE since Opera doesn't let you to set the range to document and IE will steal focus.");
+				return;
+			}
+
+			editor.setContent('a<table><tr><td>b</td></tr></table>');
+			rng = editor.dom.createRng();
+			rng.setStart(editor.getBody(), 0);
+			rng.setEnd(editor.getBody(), 1);
+			editor.selection.setRng(rng);
+			editor.selection.normalize();
+
+			rng = editor.selection.getRng(true);
+			equal(rng.endContainer, editor.getBody());
+			equal(rng.endOffset, 1);
+		});
+
 	/*
 		test('normalize caret after last BR in block', function() {
 			var rng;
@@ -1029,6 +1054,29 @@ ModuleLoader.require([
 		equal(rng.startOffset, 0);
 		equal(rng.endContainer.nodeName, '#text');
 		equal(rng.endOffset, 1);
+	});
+
+	test('getRng should return null if win.document is not defined or null', function() {
+		var win = editor.selection.win,
+			rng = editor.dom.createRng();
+
+		editor.setContent('<p>x</p>');
+
+		rng.setStart(editor.$('p')[0].firstChild, 0);
+		rng.setEnd(editor.$('p')[0].firstChild, 1);
+
+		editor.selection.setRng(rng);
+		editor.selection.setRng(null);
+
+		editor.selection.win = {};
+		rng = editor.selection.getRng(true);
+		equal(rng, null);
+
+		editor.selection.win = {document:null};
+		rng = editor.selection.getRng(true);
+		equal(rng, null);
+
+		editor.selection.win = win;
 	});
 });
 

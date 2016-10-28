@@ -46,7 +46,7 @@ define("tinymce/util/Delay", [
 
 	function wrappedSetInterval(callback, time) {
 		if (typeof time != 'number') {
-			time = 0;
+			time = 1; // IE 8 needs it to be > 0
 		}
 
 		return setInterval(callback, time);
@@ -142,6 +142,34 @@ define("tinymce/util/Delay", [
 			}, time);
 
 			return timer;
+		},
+
+		/**
+		 * Creates throttled callback function that only gets executed once within the specified time.
+		 *
+		 * @method throttle
+		 * @param {function} callback Callback to execute when timer finishes.
+		 * @param {Number} time Optional time to wait before the callback is executed, defaults to 0.
+		 * @return {Function} Throttled function callback.
+		 */
+		throttle: function(callback, time) {
+			var timer, func;
+
+			func = function() {
+				var args = arguments;
+
+				clearTimeout(timer);
+
+				timer = wrappedSetTimeout(function() {
+					callback.apply(this, args);
+				}, time);
+			};
+
+			func.stop = function() {
+				clearTimeout(timer);
+			};
+
+			return func;
 		},
 
 		/**

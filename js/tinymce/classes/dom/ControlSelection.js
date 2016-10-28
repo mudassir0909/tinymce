@@ -23,6 +23,19 @@ define("tinymce/dom/ControlSelection", [
 	"tinymce/dom/NodeType"
 ], function(VK, Tools, Delay, Env, NodeType) {
 	var isContentEditableFalse = NodeType.isContentEditableFalse;
+	var isContentEditableTrue = NodeType.isContentEditableTrue;
+
+	function getContentEditableRoot(root, node) {
+		while (node && node != root) {
+			if (isContentEditableTrue(node) || isContentEditableFalse(node)) {
+				return node;
+			}
+
+			node = node.parentNode;
+		}
+
+		return null;
+	}
 
 	return function(selection, editor) {
 		var dom = editor.dom, each = Tools.each;
@@ -50,6 +63,7 @@ define("tinymce/dom/ControlSelection", [
 			rootClass + ' div.mce-resizehandle {' +
 				'position: absolute;' +
 				'border: 1px solid black;' +
+				'box-sizing: box-sizing;' +
 				'background: #FFF;' +
 				'width: 7px;' +
 				'height: 7px;' +
@@ -58,7 +72,7 @@ define("tinymce/dom/ControlSelection", [
 			rootClass + ' .mce-resizehandle:hover {' +
 				'background: #000' +
 			'}' +
-			rootClass + ' *[data-mce-selected] {' +
+			rootClass + ' img[data-mce-selected],' + rootClass + ' hr[data-mce-selected] {' +
 				'outline: 1px solid black;' +
 				'resize: none' + // Have been talks about implementing this in browsers
 			'}' +
@@ -232,6 +246,7 @@ define("tinymce/dom/ControlSelection", [
 		function showResizeRect(targetElm, mouseDownHandleName, mouseDownEvent) {
 			var position, targetWidth, targetHeight, e, rect;
 
+			hideResizeRect();
 			unbindResizeHandleEvents();
 
 			// Get position and size of target
@@ -460,10 +475,14 @@ define("tinymce/dom/ControlSelection", [
 			}
 		}
 
+		function isWithinContentEditableFalse(elm) {
+			return isContentEditableFalse(getContentEditableRoot(editor.getBody(), elm));
+		}
+
 		function nativeControlSelect(e) {
 			var target = e.srcElement;
 
-			if (isContentEditableFalse(target)) {
+			if (isWithinContentEditableFalse(target)) {
 				preventDefault(e);
 				return;
 			}
@@ -550,10 +569,10 @@ define("tinymce/dom/ControlSelection", [
 					// Needs to be mousedown for drag/drop to work on IE 11
 					// Needs to be click on Edge to properly select images
 					editor.on('mousedown click', function(e) {
-						var nodeName = e.target.nodeName;
+						var target = e.target, nodeName = target.nodeName;
 
-						if (!resizeStarted && /^(TABLE|IMG|HR)$/.test(nodeName)) {
-							editor.selection.select(e.target, nodeName == 'TABLE');
+						if (!resizeStarted && /^(TABLE|IMG|HR)$/.test(nodeName) && !isWithinContentEditableFalse(target)) {
+							editor.selection.select(target, nodeName == 'TABLE');
 
 							// Only fire once since nodeChange is expensive
 							if (e.type == 'mousedown') {
@@ -569,7 +588,7 @@ define("tinymce/dom/ControlSelection", [
 							});
 						}
 
-						if (isContentEditableFalse(e.target)) {
+						if (isWithinContentEditableFalse(e.target)) {
 							e.preventDefault();
 							delayedSelect(e.target);
 							return;
@@ -588,16 +607,19 @@ define("tinymce/dom/ControlSelection", [
 				}
 			}
 
-			editor.on('nodechange ResizeEditor ResizeWindow drop', function(e) {
-				Delay.requestAnimationFrame(function() {
+			var throttledUpdateResizeRect = Delay.throttle(function(e) {
+				if (!editor.composing) {
 					updateResizeRect(e);
-				});
+				}
 			});
 
+			editor.on('nodechange ResizeEditor ResizeWindow drop', throttledUpdateResizeRect);
+
 			// Update resize rect while typing in a table
-			editor.on('keydown keyup', function(e) {
+			editor.on('keyup compositionend', function(e) {
+				// Don't update the resize rect while composing since it blows away the IME see: #2710
 				if (selectedElm && selectedElm.nodeName == "TABLE") {
-					updateResizeRect(e);
+					throttledUpdateResizeRect(e);
 				}
 			});
 

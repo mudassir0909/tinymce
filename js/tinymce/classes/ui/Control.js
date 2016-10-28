@@ -157,7 +157,7 @@ define("tinymce/ui/Control", [
 		 * @return {Element} HTML DOM element to render into.
 		 */
 		getContainerElm: function() {
-			return document.body;
+			return DomUtils.getContainer();
 		},
 
 		/**
@@ -430,6 +430,20 @@ define("tinymce/ui/Control", [
 
 			self._lastRepaintRect = lastRepaintRect;
 			self.fire('repaint', {}, false);
+		},
+
+		/**
+		 * Updates the controls layout rect by re-measuing it.
+		 */
+		updateLayoutRect: function() {
+			var self = this;
+
+			self.parent()._lastRect = null;
+
+			DomUtils.css(self.getEl(), {width: '', height: ''});
+
+			self._layoutRect = self._lastRepaintRect = self._lastLayoutRect = null;
+			self.initLayoutRect();
 		},
 
 		/**

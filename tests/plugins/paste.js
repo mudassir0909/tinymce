@@ -27,6 +27,32 @@ module("tinymce.plugins.Paste", {
 	}
 });
 
+test("Plain text toggle event", function() {
+	var events = [];
+
+	editor.on('PastePlainTextToggle', function (e) {
+		events.push({state: e.state});
+	});
+
+	editor.execCommand('mceTogglePlainTextPaste');
+	deepEqual(events, [
+		{state: true}
+	], 'Should be enabled');
+
+	editor.execCommand('mceTogglePlainTextPaste');
+	deepEqual(events, [
+		{state: true},
+		{state: false}
+	], 'Should be disabled');
+
+	editor.execCommand('mceTogglePlainTextPaste');
+	deepEqual(events, [
+		{state: true},
+		{state: false},
+		{state: true}
+	], 'Should be enabled again');
+});
+
 test("Paste simple text content", function() {
 	var rng = editor.dom.createRng();
 
@@ -547,7 +573,7 @@ test('paste data image with paste_data_images: true', function() {
 	editor.setContent('');
 	editor.execCommand('mceInsertClipboardContent', false, {content: '<img src="data:image/gif;base64,R0lGODlhAQABAPAAAP8REf///yH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==">'});
 
-	equal(editor.getContent(), '<p><img src="data:image/gif;base64,R0lGODlhAQABAPAAAP8REf///yH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==" alt="" /></p>');
+	equal(editor.getContent(), '<p><img src="data:image/gif;base64,R0lGODlhAQABAPAAAP8REf///yH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==" /></p>');
 });
 
 test('paste pre process text (event)', function() {

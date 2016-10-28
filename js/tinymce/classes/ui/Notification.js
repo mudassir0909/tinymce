@@ -19,8 +19,9 @@
 define("tinymce/ui/Notification", [
 	"tinymce/ui/Control",
 	"tinymce/ui/Movable",
-    "tinymce/ui/Progress"
-], function(Control, Movable, Progress) {
+	"tinymce/ui/Progress",
+	"tinymce/util/Delay"
+], function(Control, Movable, Progress, Delay) {
 	return Control.extend({
 		Mixins: [Movable],
 
@@ -102,6 +103,16 @@ define("tinymce/ui/Notification", [
 			);
 		},
 
+		postRender: function() {
+			var self = this;
+
+			Delay.setTimeout(function() {
+				self.$el.addClass(self.classPrefix + 'in');
+			});
+
+			return self._super();
+		},
+
 		bindStates: function() {
 			var self = this;
 
@@ -137,7 +148,10 @@ define("tinymce/ui/Notification", [
 
 			style.left = rect.x + 'px';
 			style.top = rect.y + 'px';
-			style.zIndex = 0xFFFF + 0xFFFF;
+
+			// Hardcoded arbitrary z-value because we want the
+			// notifications under the other windows
+			style.zIndex = 0xFFFF - 1;
 		}
 	});
 });
