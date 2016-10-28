@@ -1,6 +1,14 @@
 TinyMCE - The JavaScript Rich Text editor
 ==========================================
-This repo hosts custom builds of tinymce with cherry-picked plugins. Tinymce is build from a tag & then the build is retagged with a "v" prefix. For example, you can find the custom build of tag 4.1.9 at v4.1.9 tag & so on. You can also find the commits under the branch `build/X.X.X` (X.X.X is version number)
+This repo hosts custom builds of tinymce with cherry-picked plugins. Tinymce is built from a tag & then the build is retagged with a "v" prefix. For example, you can find the custom build of tag 4.1.9 at v4.1.9 tag & so on. You can also find the commits under the branch `build/X.X.X` (X.X.X is version number). After the build is generated we also delete the tag without the "v" prefix because when you do `bower install` by specifying "v" prefixed tag, it tends to pickup the one without the "v" prefix
+
+Custom Build Commands
+----------------------
+```
+npm install
+grunt
+grunt bundle --plugins preview,spellchecker,autolink,hr,image,link,lists
+```
 
 Building TinyMCE
 -----------------
