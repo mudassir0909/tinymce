@@ -7,7 +7,7 @@ Custom Build Commands
 ```
 npm install
 grunt
-grunt bundle --plugins preview,spellchecker,autolink,hr,image,link,lists
+grunt bundle --plugins preview,spellchecker,autolink,hr,image,link,lists,paste
 ```
 
 Building TinyMCE
